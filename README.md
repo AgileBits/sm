@@ -22,19 +22,53 @@ On the first run, the utility will generate a new master key and store it in `~/
 
 ## Encrypt/decrypt data with Amazon Web Service KMS
 
-First, you have to create a master key using AWS IAM and give yourself permissions to use this key for encryption and decryption. 
+First, you have to create a master key using AWS IAM and give yourself permissions to use this key for encryption and decryption.
 
 ```
 export AWS_REGION='us-east-1'
 export KMS_KEY_ID='arn:aws:kms:us-east-1:123123123123:key/d845cfa3-0719-4631-1d00-10ab63e40ddf'
 
+# encrypt the file and pipe stdout to a file
 cat app-config.yml | sm encrypt \
 	--env aws \
 	--region $AWS_REGION \
 	--master $KMS_KEY_ID \
 	> app-config.sm
 
+# encrypt the file and write the output to a file
+# if you have a `.sm/manifest` file, we will add an
+# unencrypted path to the output file to this file
+# as well as your gitignore
+cat app-config.yml | sm encrypt \
+  --env aws \
+  --region $AWS_REGION \
+  --master $KMS_KEY_ID \
+  --out app-config.sm
+
+# encrypt the file using settings from a configuration file
+cat app-config.yml | sm encrypt \
+  --config config.yml
+  --out app-config.sm
+
+# decrypt the file specified via stdin
 cat app-config.sm | sm decrypt
+
+# decrypt the file speified via flag
+sm decrypt --input app-config.sm
+
+# decrypt the file and write the output to a file
+cat app-config.sm | sm decrypt --out app-config.yml
+
+# decrypting all files you have specified in your .sm/manifest
+sm decrypt-all
+
+# re-encrypting all files specified in your .sm/manifest that have
+# changed since the last encryption pass
+sm encrypt-all
+
+# shred all decrypted files based on your .sm/manifest
+# ensuring you do not have secrets in plaintext on disk
+sm shred
 ```
 
 ## Use jq to validate JSON files
@@ -54,6 +88,19 @@ sm decrypt < config.sm | jq
 
 ```
 
+## Using with GIT
 
+You can integrate SM with `git diff` by adding the following in your repository's `.gitattributes` file:
 
+```
+*.sm diff=sm
+```
 
+The above change assumes that all encrypted files will have the ending `.sm`. It can be safely committed if that is the case.
+
+Developers will also need to add the following stanza to their `.git/config` file - either globally or on a per-repository basis:
+
+```
+[diff "sm"]
+    textconv = sm decrypt --input
+```
